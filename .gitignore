@@ -1,0 +1,5 @@
+rcv1/
+reuters21578/
+*.tar.gz
+*.tar.xz
+*~
