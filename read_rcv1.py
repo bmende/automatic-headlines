@@ -1,14 +1,17 @@
 import os
 import nltk
-
 import xml.etree.ElementTree as ET
 
+from collections import defaultdict
 from dateutil import parser as dateparser
 
 
 
 
 class RCV1_doc:
+
+    _headline_vocab = None
+    _text_vocab = None
 
     def __init__(self, path):
 
@@ -20,17 +23,58 @@ class RCV1_doc:
 
         self.text = [sentence.text for sentence in doc_root.find('text')]
 
+
+        self.headline_vocab()
+        self.text_vocab()
+
     def __str__(self):
-        ret_str = "Document {doc_id} was published on {date} \n".format(doc_id=self.doc_id, date=self.date)
-        ret_str += self.headline + "\n"
+        doc_id_and_date = "Document {doc_id} was published on {date}".format(doc_id=self.doc_id, date=self.date)
+        headline = "Headline: {headline}".format(headline=self.headline)
 
-        sentences = "\n".join(self.text)
+        sentences = "Article Text: \n{text}".format(text="\n".join(self.text))
 
-        ret_str += sentences
+        return "\n".join([doc_id_and_date, headline, sentences])
 
-        return ret_str
+    def headline_vocab(self):
+
+        if self._headline_vocab:
+            return self._headline_vocab
+
+        tokened_headline = nltk.word_tokenize(self.headline)
+        self._headline_vocab = nltk.FreqDist(tokened_headline)
+        return self._headline_vocab
+
+    def text_vocab(self):
+        if self._text_vocab:
+            return self._text_vocab
+
+        self._text_vocab = nltk.FreqDist()
+        for sentence in self.text:
+           tokened_sentence = nltk.word_tokenize(sentence)
+           self._text_vocab += nltk.FreqDist(tokened_sentence)
+
+        return self._text_vocab
 
 
+
+def read_rcv1_docs():
+
+    rcv1_dir = "rcv1"
+    date_dirs = [date_dir for date_dir in os.listdir(rcv1_dir) if date_dir.startswith('199')]
+
+    article_paths = {}
+    for date in date_dirs[:1]:
+        date_path = os.path.join(rcv1_dir, date)
+        article_paths[date] = [os.path.join(date_path, article) for article in os.listdir(date_path) if article.endswith('.xml')]
+
+
+    articles_by_date = defaultdict(list)
+    for date, paths in article_paths.iteritems():
+        for path in paths:
+            articles_by_date[date].append(RCV1_doc(path))
+
+
+    return articles_by_date
 
 
 
@@ -38,16 +82,43 @@ class RCV1_doc:
 
 if __name__ == "__main__":
 
-    rcv1_dir = "rcv1"
-    date_dirs = [date_dir for date_dir in os.listdir(rcv1_dir) if date_dir.startswith('199')]
 
-    article_paths = {}
-    for date in date_dirs:
-        date_path = os.path.join(rcv1_dir, date)
-        article_paths[date] = [os.path.join(date_path, article) for article in os.listdir(date_path) if article.endswith('.xml')]
+    articles_by_date = read_rcv1_docs()
 
-    print date, article_paths[date][:1], "\n"
-    first_doc_last_day = RCV1_doc(article_paths[date][0])
-    print str(first_doc_last_day)
+    text_vocab = nltk.FreqDist()
+    headline_vocab = nltk.FreqDist()
+    total_vocab = nltk.FreqDist()
 
-    print len(first_doc_last_day.text)
+
+    for date, articles in articles_by_date.iteritems():
+        tots = len(articles)
+        count = 0
+        for article in articles:
+            text_vocab += article.text_vocab()
+            headline_vocab += article.headline_vocab()
+            total_vocab += text_vocab + headline_vocab
+            print count, "out of", tots
+            count += 1
+
+
+
+    print "headline most common\n", headline_vocab.most_common(10)
+    print "\ntext most common\n", text_vocab.most_common(10)
+    print "\ntotal_most_common\n", total_vocab.most_common(10)
+
+
+
+
+    # rcv1_dir = "rcv1"
+    # date_dirs = [date_dir for date_dir in os.listdir(rcv1_dir) if date_dir.startswith('199')]
+
+    # article_paths = {}
+    # for date in date_dirs:
+    #     date_path = os.path.join(rcv1_dir, date)
+    #     article_paths[date] = [os.path.join(date_path, article) for article in os.listdir(date_path) if article.endswith('.xml')]
+
+    # print date, article_paths[date][:1], "\n"
+    # first_doc_last_day = RCV1_doc(article_paths[date][0])
+    # print str(first_doc_last_day)
+
+    # print len(first_doc_last_day.text)
