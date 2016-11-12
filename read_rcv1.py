@@ -2,7 +2,7 @@ import os
 import nltk
 import xml.etree.ElementTree as ET
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 from dateutil import parser as dateparser
 
 
@@ -41,7 +41,7 @@ class RCV1_doc:
             return self._headline_vocab
 
         tokened_headline = nltk.word_tokenize(self.headline)
-        self._headline_vocab = nltk.FreqDist(tokened_headline)
+        self._headline_vocab = Counter(tokened_headline)
         return self._headline_vocab
 
     def text_vocab(self):
@@ -51,7 +51,7 @@ class RCV1_doc:
         self._text_vocab = nltk.FreqDist()
         for sentence in self.text:
            tokened_sentence = nltk.word_tokenize(sentence)
-           self._text_vocab += nltk.FreqDist(tokened_sentence)
+           self._text_vocab += Counter(tokened_sentence)
 
         return self._text_vocab
 
@@ -85,20 +85,19 @@ if __name__ == "__main__":
 
     articles_by_date = read_rcv1_docs()
 
-    text_vocab = nltk.FreqDist()
-    headline_vocab = nltk.FreqDist()
-    total_vocab = nltk.FreqDist()
+    text_vocab = Counter()
+    headline_vocab = Counter()
+    total_vocab = Counter()
 
 
     for date, articles in articles_by_date.iteritems():
         tots = len(articles)
         count = 0
         for article in articles:
-            text_vocab += article.text_vocab()
-            headline_vocab += article.headline_vocab()
-            total_vocab += text_vocab + headline_vocab
-            print count, "out of", tots
-            count += 1
+            text_vocab.update(article.text_vocab())
+            headline_vocab.update(article.headline_vocab())
+            total_vocab.update(article.text_vocab())
+            total_vocab.update(article.headline_vocab())
 
 
 
