@@ -65,24 +65,18 @@ class RCV1_doc:
 
 
 
-def read_rcv1_docs():
-
-    date_dirs = [date_dir for date_dir in os.listdir(RCV1_DIR) if date_dir.startswith('199')]
-
-    article_paths = {}
-    for date in date_dirs[:3]:
-        date_path = os.path.join(rcv1_dir, date)
-        article_paths[date] = [os.path.join(date_path, article) for article in os.listdir(date_path) if article.endswith('.xml')]
+def get_split_data(split_path_file):
 
 
-    articles_by_date = defaultdict(list)
-    for date, paths in article_paths.iteritems():
-        for path in paths:
-            articles_by_date[date].append(RCV1_doc(path))
-        print date
+    with open(split_path_file, 'r') as splits:
+        split_paths = [path.strip() for path in splits]
 
 
-    return articles_by_date
+    rcv1_articles = list()
+    for path in split_paths:
+            rcv1_articles.append(RCV1_doc(path))
+
+    return rcv1_articles
 
 
 def create_training_splits():
@@ -103,7 +97,7 @@ def create_training_splits():
                 article_paths['train'].append(article_path)
             elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY:
                 article_paths['val'].append(article_path)
-            elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY + NUM_TRAIN_DAILY:
+            elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY + NUM_TEST_DAILY:
                 article_paths['test'].append(article_path)
 
             count += 1
@@ -134,7 +128,8 @@ if __name__ == "__main__":
 
 
 
-    create_training_splits()
+    #create_training_splits()
+    get_split_data('data/train{size}.split'.format(size=NUM_TRAIN))
     # articles_by_date = read_rcv1_docs()
 
     # text_vocab = Counter()
