@@ -30,7 +30,7 @@ class RCV1_doc:
         doc_root = ET.parse(path).getroot()
         self.doc_id = doc_root.attrib['itemid']
         self.date = dateparser.parse(doc_root.attrib['date']).date()
-        self.headline = doc_root.find('headline').text
+        self.headline = doc_root.find('headline').text or ""
 
         self.text = [sentence.text for sentence in doc_root.find('text')]
 
@@ -47,7 +47,6 @@ class RCV1_doc:
 
         if self._headline_vocab:
             return self._headline_vocab
-
         tokened_headline = nltk.word_tokenize(self.headline)
         self._headline_vocab = Counter(tokened_headline)
         return self._headline_vocab
@@ -129,28 +128,28 @@ if __name__ == "__main__":
 
 
     #create_training_splits()
-    get_split_data('data/train{size}.split'.format(size=NUM_TRAIN))
+    train_articles = get_split_data('data/test{size}.split'.format(size=NUM_TEST))
     # articles_by_date = read_rcv1_docs()
 
-    # text_vocab = Counter()
-    # headline_vocab = Counter()
-    # total_vocab = Counter()
+    text_vocab = Counter()
+    headline_vocab = Counter()
+    total_vocab = Counter()
 
 
-    # for date, articles in articles_by_date.iteritems():
-    #     tots = len(articles)
-    #     count = 0
-    #     for article in articles:
-    #         text_vocab.update(article.text_vocab())
-    #         headline_vocab.update(article.headline_vocab())
-    #         total_vocab.update(article.text_vocab())
-    #         total_vocab.update(article.headline_vocab())
+    count = 0
+    for article in train_articles:
+        text_vocab.update(article.text_vocab())
+        headline_vocab.update(article.headline_vocab())
+        total_vocab.update(article.text_vocab())
+        total_vocab.update(article.headline_vocab())
+        count += 1
+        print count, len(train_articles)
 
 
 
-    # print "headline most common\n", headline_vocab.most_common(10)
-    # print "\ntext most common\n", text_vocab.most_common(10)
-    # print "\ntotal_most_common\n", total_vocab.most_common(10)
+    print "headline most common\n", headline_vocab.most_common(10)
+    print "\ntext most common\n", text_vocab.most_common(10)
+    print "\ntotal_most_common\n", total_vocab.most_common(10)
 
 
 
