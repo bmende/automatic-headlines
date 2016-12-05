@@ -1,9 +1,10 @@
-import os
+import os, sys, pickle
 import nltk
 import xml.etree.ElementTree as ET
 
 from collections import defaultdict, Counter
 from dateutil import parser as dateparser
+from itertools import chain
 
 DATA_DIR = "data"
 RCV1_DIR = os.path.join(DATA_DIR, "rcv1")
@@ -23,6 +24,7 @@ class RCV1_doc:
 
     _headline_vocab = None
     _text_vocab = None
+    _first_sent_vocab = None
 
     def __init__(self, path):
 
@@ -30,10 +32,18 @@ class RCV1_doc:
         doc_root = ET.parse(path).getroot()
         self.doc_id = doc_root.attrib['itemid']
         self.date = dateparser.parse(doc_root.attrib['date']).date()
-        self.headline = doc_root.find('headline').text
 
-        self.text = [sentence.text for sentence in doc_root.find('text')]
+        self.headline = nltk.word_tokenize(doc_root.find('headline').text or [""])
+        self.headline_set = set(self.headline) # to find if words are in the headline, this is faster
 
+        self.text = [nltk.word_tokenize(sentence.text) for sentence in doc_root.find('text')]
+        self.total_text = chain(*self.text)
+
+
+    @staticmethod
+    def has_headline(path):
+        doc_root = ET.parse(path).getroot()
+        return doc_root.find('headline').text is not None
 
     def __str__(self):
         doc_id_and_date = "Document {doc_id} was published on {date}".format(doc_id=self.doc_id, date=self.date)
@@ -47,21 +57,32 @@ class RCV1_doc:
 
         if self._headline_vocab:
             return self._headline_vocab
-
-        tokened_headline = nltk.word_tokenize(self.headline)
-        self._headline_vocab = Counter(tokened_headline)
+        self._headline_vocab = Counter(self.headline)
         return self._headline_vocab
+
+    def first_sent_vocab(self):
+
+        if self._first_sent_vocab:
+            return self._first_sent_vocab
+        self._first_sent_vocab = Counter(self.text[0])
+        return self._first_sent_vocab
 
     def text_vocab(self):
         if self._text_vocab:
             return self._text_vocab
 
-        self._text_vocab = nltk.FreqDist()
+        self._text_vocab = Counter()
         for sentence in self.text:
-           tokened_sentence = nltk.word_tokenize(sentence)
-           self._text_vocab += Counter(tokened_sentence)
+           self._text_vocab.update(Counter(sentence))
 
         return self._text_vocab
+
+    def get_text_pos(self):
+        self.text_pos = list()
+        for sent in self.text:
+            self.text_pos.append(nltk.pos_tag(sent))
+
+        return self.text_pos
 
 
 
@@ -73,8 +94,13 @@ def get_split_data(split_path_file):
 
 
     rcv1_articles = list()
+    tots = len(split_paths)
+    count = 0.
     for path in split_paths:
             rcv1_articles.append(RCV1_doc(path))
+            count += 1
+            update_progress(count / tots)
+
 
     return rcv1_articles
 
@@ -85,6 +111,7 @@ def create_training_splits():
 
     article_paths = {'train': list(), 'val': list(), 'test': list()}
 
+    total_count = 0
     for date in date_dirs:
         date_path = os.path.join(RCV1_DIR, date)
         count = 0
@@ -93,14 +120,21 @@ def create_training_splits():
                 continue
 
             article_path = os.path.join(date_path, article_file_name)
+            if not RCV1_doc.has_headline(article_path):
+                print article_path
+                continue # cant have articles with no headline!
             if count < NUM_TRAIN_DAILY:
                 article_paths['train'].append(article_path)
             elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY:
                 article_paths['val'].append(article_path)
             elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY + NUM_TEST_DAILY:
                 article_paths['test'].append(article_path)
+            else:
+                break
 
             count += 1
+            total_count += 1
+            update_progress(float(total_count) / float(NUM_TRAIN + NUM_VAL + NUM_TEST))
 
     train_splits = open(os.path.join(DATA_DIR, 'train{size}.split'.format(size=NUM_TRAIN)), 'w')
     val_splits = open(os.path.join(DATA_DIR, 'val{size}.split'.format(size=NUM_VAL)), 'w')
@@ -123,34 +157,89 @@ def create_training_splits():
 
 
 
+# update_progress() : Displays or updates a console progress bar
+## Accepts a float between 0 and 1. Any int will be converted to a float.
+## A value under 0 represents a 'halt'.
+## A value at 1 or bigger represents 100%
+def update_progress(progress):
+    barLength = 10 # Modify this to change the length of the progress bar
+    status = ""
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    if progress >= 1:
+        progress = 1
+        status = "Done...\r\n"
+    block = int(round(barLength*progress))
+    text = "\rPercent: [{0}] {1}%    {2}".format( "#"*block + "-"*(barLength-block), progress*100, status)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
+
 if __name__ == "__main__":
 
 
 
 
     #create_training_splits()
-    get_split_data('data/train{size}.split'.format(size=NUM_TRAIN))
-    # articles_by_date = read_rcv1_docs()
+    print "getting data"
+    train_articles = get_split_data('data/test{size}.split'.format(size=NUM_TEST))
+    print "data got"
+
+
+    count = 1.
+    tot = len(train_articles)
+    pos_tags = Counter()
+    for article in train_articles:
+        article.get_text_pos()
+        update_progress(count / tot)
+        count += 1
 
     # text_vocab = Counter()
     # headline_vocab = Counter()
+    # first_sent_vocab = Counter()
     # total_vocab = Counter()
 
 
-    # for date, articles in articles_by_date.iteritems():
-    #     tots = len(articles)
-    #     count = 0
-    #     for article in articles:
-    #         text_vocab.update(article.text_vocab())
-    #         headline_vocab.update(article.headline_vocab())
-    #         total_vocab.update(article.text_vocab())
-    #         total_vocab.update(article.headline_vocab())
+    # count = 0.
+    # total = len(train_articles)
+    # print "getting stats"
+    # for article in train_articles:
+    #     text_vocab.update(article.text_vocab())
+    #     headline_vocab.update(article.headline_vocab())
+    #     total_vocab.update(article.text_vocab())
+    #     total_vocab.update(article.headline_vocab())
+    #     first_sent_vocab.update(article.first_sent_vocab())
+    #     count += 1
+    #     update_progress(count / total)
 
 
 
+    # with open('hv', 'r') as hv:
+    #     headline_vocab = pickle.load(hv)
+    # with open('tev', 'r') as tev:
+    #    text_vocab = pickle.load(tev)
+    # with open('totv', 'r') as totv:
+    #    total_vocab = pickle.load(totv)
+    # with open('firstv', 'r') as firstv:
+    #     first_sent_vocab = pickle.load(firstv)
     # print "headline most common\n", headline_vocab.most_common(10)
     # print "\ntext most common\n", text_vocab.most_common(10)
     # print "\ntotal_most_common\n", total_vocab.most_common(10)
+    # print "\nfirst_sent_most_common\n", first_sent_vocab.most_common(10)
+
+    # print "\ntotal number of words in articles, headlines, and combined"
+    # print sum(text_vocab.values()), sum(headline_vocab.values()), sum(total_vocab.values())
+    # print "size of vocabulary in articles, headlines, and combined"
+    # print len(text_vocab.values()), len(headline_vocab.values()), len(total_vocab.values())
+
+    # first_fd = nltk.FreqDist(first_sent_vocab)
+    #first_fd.plot(25, title="25 Most common words in the first sentence")
 
 
 
