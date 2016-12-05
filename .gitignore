@@ -4,3 +4,4 @@ reuters21578/
 *.tar.gz
 *.tar.xz
 *~
+*.pyc

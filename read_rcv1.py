@@ -37,7 +37,9 @@ class RCV1_doc:
         self.headline_set = set(self.headline) # to find if words are in the headline, this is faster
 
         self.text = [nltk.word_tokenize(sentence.text) for sentence in doc_root.find('text')]
-        self.total_text = chain(*self.text)
+
+        self.headline_pos = self.get_headline_pos()
+        self.text_pos = self.get_text_pos()
 
 
     @staticmethod
@@ -78,15 +80,49 @@ class RCV1_doc:
         return self._text_vocab
 
     def get_text_pos(self):
-        self.text_pos = list()
+        text_pos = list()
         for sent in self.text:
-            self.text_pos.append(nltk.pos_tag(sent))
+            text_pos.extend(nltk.pos_tag(sent))
 
-        return self.text_pos
+        return text_pos
+
+    def get_headline_pos(self):
+        return nltk.pos_tag(self.headline)
+
+
+    def get_local_feature(self, word_index):
+        max_index = len(self.text_pos)
+        assert word_index <= max_index
+
+        word, word_pos = self.text_pos[word_index]
+        word_sentence = 0
+        word_i = word_index - len(self.text[0])
+        while word_i >= 0:
+            word_sentence += 1
+            word_i -= len(self.text[word_sentence])
+
+        in_headline = word in self.headline_set
+        local_feature = dict()
+        local_feature[(in_headline, 'currword', word)] = 1
+        local_feature[(in_headline, 'currword_pos', word_pos)] = 1
+        local_feature[(in_headline, 'currword_sentence', word_sentence)] = 1
+
+        # word context is 2 before, and 2 after
+        prev_word, prev_word_pos = self.text_pos[word_index-1] if word_index > 0 else (None, None)
+        post_word, post_word_pos = self.text_pos[word_index+1] if word_index < max_index else (None, None)
+
+        local_feature[(in_headline, 'pre_bigram', word, prev_word)] = 1
+        local_feature[(in_headline, 'post_bigram', word, post_word)] = 1
+        local_feature[(in_headline, 'pre_pos', prev_word_pos)] = 1
+        local_feature[(in_headline, 'post_pos', post_word_pos)] = 1
+
+        return local_feature
 
 
 
-def get_split_data(split_path_file):
+
+
+def get_split_data(split_path_file='data/train36500.split'):
 
 
     with open(split_path_file, 'r') as splits:
@@ -94,15 +130,19 @@ def get_split_data(split_path_file):
 
 
     rcv1_articles = list()
-    tots = len(split_paths)
+    tots = 10#len(split_paths)
     count = 0.
-    for path in split_paths:
+    for path in split_paths[:tots]:
             rcv1_articles.append(RCV1_doc(path))
             count += 1
             update_progress(count / tots)
 
 
     return rcv1_articles
+
+def get_one_article(article_path='data/rcv1/19961021/131576newsML.xml'):
+
+    return RCV1_doc(article_path)
 
 
 def create_training_splits():
@@ -188,17 +228,8 @@ if __name__ == "__main__":
 
     #create_training_splits()
     print "getting data"
-    train_articles = get_split_data('data/test{size}.split'.format(size=NUM_TEST))
+    train_articles = get_split_data('data/val{size}.split'.format(size=NUM_VAL))
     print "data got"
-
-
-    count = 1.
-    tot = len(train_articles)
-    pos_tags = Counter()
-    for article in train_articles:
-        article.get_text_pos()
-        update_progress(count / tot)
-        count += 1
 
     # text_vocab = Counter()
     # headline_vocab = Counter()
