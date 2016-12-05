@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 
 from collections import defaultdict, Counter
 from dateutil import parser as dateparser
+from itertools import chain
 
 DATA_DIR = "data"
 RCV1_DIR = os.path.join(DATA_DIR, "rcv1")
@@ -31,11 +32,18 @@ class RCV1_doc:
         doc_root = ET.parse(path).getroot()
         self.doc_id = doc_root.attrib['itemid']
         self.date = dateparser.parse(doc_root.attrib['date']).date()
-        self.headline = nltk.word_tokenize(doc_root.find('headline').text) or [""]
 
-        #self.text = [nltk.word_tokenize(sentence.text) for sentence in doc_root.find('text')]
+        self.headline = nltk.word_tokenize(doc_root.find('headline').text or [""])
+        self.headline_set = set(self.headline) # to find if words are in the headline, this is faster
+
+        self.text = [nltk.word_tokenize(sentence.text) for sentence in doc_root.find('text')]
+        self.total_text = chain(*self.text)
 
 
+    @staticmethod
+    def has_headline(path):
+        doc_root = ET.parse(path).getroot()
+        return doc_root.find('headline').text is not None
 
     def __str__(self):
         doc_id_and_date = "Document {doc_id} was published on {date}".format(doc_id=self.doc_id, date=self.date)
@@ -69,6 +77,13 @@ class RCV1_doc:
 
         return self._text_vocab
 
+    def get_text_pos(self):
+        self.text_pos = list()
+        for sent in self.text:
+            self.text_pos.append(nltk.pos_tag(sent))
+
+        return self.text_pos
+
 
 
 def get_split_data(split_path_file):
@@ -96,6 +111,7 @@ def create_training_splits():
 
     article_paths = {'train': list(), 'val': list(), 'test': list()}
 
+    total_count = 0
     for date in date_dirs:
         date_path = os.path.join(RCV1_DIR, date)
         count = 0
@@ -104,14 +120,21 @@ def create_training_splits():
                 continue
 
             article_path = os.path.join(date_path, article_file_name)
+            if not RCV1_doc.has_headline(article_path):
+                print article_path
+                continue # cant have articles with no headline!
             if count < NUM_TRAIN_DAILY:
                 article_paths['train'].append(article_path)
             elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY:
                 article_paths['val'].append(article_path)
             elif count < NUM_TRAIN_DAILY + NUM_VAL_DAILY + NUM_TEST_DAILY:
                 article_paths['test'].append(article_path)
+            else:
+                break
 
             count += 1
+            total_count += 1
+            update_progress(float(total_count) / float(NUM_TRAIN + NUM_VAL + NUM_TEST))
 
     train_splits = open(os.path.join(DATA_DIR, 'train{size}.split'.format(size=NUM_TRAIN)), 'w')
     val_splits = open(os.path.join(DATA_DIR, 'val{size}.split'.format(size=NUM_VAL)), 'w')
@@ -169,17 +192,13 @@ if __name__ == "__main__":
     print "data got"
 
 
-    count = 0.
+    count = 1.
     tot = len(train_articles)
     pos_tags = Counter()
     for article in train_articles:
-        pos_tagged_headline = nltk.pos_tag(article.headline)
-        ptags = [p for t, p in pos_tagged_headline]
-        pos_tags.update(ptags)
-        count += 1
+        article.get_text_pos()
         update_progress(count / tot)
-
-    print pos_tags.most_common(25)
+        count += 1
 
     # text_vocab = Counter()
     # headline_vocab = Counter()
