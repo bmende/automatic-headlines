@@ -42,6 +42,8 @@ class RCV1_doc:
         self.text_pos = self.get_text_pos()
         self.text_set = set([word for word, pos in self.text_pos]) # useful for idf scores
 
+        self.article_length = len(self.text_pos)
+
 
     @staticmethod
     def has_headline(path):
@@ -92,8 +94,7 @@ class RCV1_doc:
 
 
     def get_local_feature(self, word_index):
-        max_index = len(self.text_pos)
-        assert word_index <= max_index
+        assert word_index < self.article_length
 
         word, word_pos = self.text_pos[word_index]
         word_sentence = 0
@@ -116,7 +117,7 @@ class RCV1_doc:
 
         # word context is 2 before, and 2 after
         prev_word, prev_word_pos = self.text_pos[word_index-1] if word_index > 0 else (None, None)
-        post_word, post_word_pos = self.text_pos[word_index+1] if word_index < max_index else (None, None)
+        post_word, post_word_pos = self.text_pos[word_index+1] if word_index < self.article_length-1 else (None, None)
 
         local_feature[('pre_bigram', word, prev_word)] = 1
         local_feature[('post_bigram', word, post_word)] = 1
@@ -126,6 +127,14 @@ class RCV1_doc:
         return local_feature, in_headline
 
 
+    def get_all_features(self):
+
+        all_features = list()
+        for i in range(self.article_length):
+            feature_vec, outcome = self.get_local_feature(i)
+            all_features.append((feature_vec, outcome))
+
+        return all_features
 
 
 
