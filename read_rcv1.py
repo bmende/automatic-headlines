@@ -10,9 +10,9 @@ DATA_DIR = "data"
 RCV1_DIR = os.path.join(DATA_DIR, "rcv1")
 
 
-NUM_TRAIN_DAILY = 100
-NUM_VAL_DAILY = 50
-NUM_TEST_DAILY = 50
+NUM_TRAIN_DAILY = 10
+NUM_VAL_DAILY = 5
+NUM_TEST_DAILY = 5
 # 365 is number of article directories, one for each day
 NUM_TRAIN = 365 * NUM_TRAIN_DAILY # 36,500
 NUM_VAL = 365 * NUM_VAL_DAILY # 18,250
@@ -38,11 +38,11 @@ class RCV1_doc:
 
         self.text = [nltk.word_tokenize(sentence.text) for sentence in doc_root.find('text')]
 
-        self.headline_pos = self.get_headline_pos()
-        self.text_pos = self.get_text_pos()
-        self.text_set = set([word for word, pos in self.text_pos]) # useful for idf scores
+        #self.headline_pos = self.get_headline_pos()
+        #self.text_pos = self.get_text_pos()
+        #self.text_set = set([word for word, pos in self.text_pos]) # useful for idf scores
 
-        self.article_length = len(self.text_pos)
+        #self.article_length = len(self.text_pos)
 
 
     @staticmethod
@@ -138,7 +138,7 @@ class RCV1_doc:
 
 
 
-def get_split_data(split_path_file='data/train36500.split'):
+def get_split_data(split_path_file='data/train3650.split'):
 
 
     with open(split_path_file, 'r') as splits:
@@ -146,7 +146,7 @@ def get_split_data(split_path_file='data/train36500.split'):
 
 
     rcv1_articles = list()
-    tots = 10#len(split_paths)
+    tots = len(split_paths)
     count = 0.
     for path in split_paths[:tots]:
             rcv1_articles.append(RCV1_doc(path))
