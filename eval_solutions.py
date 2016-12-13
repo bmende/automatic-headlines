@@ -1,7 +1,7 @@
 import nltk
 from nltk.translate.bleu_score import modified_precision
 from nltk.stem.porter import PorterStemmer
-
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 import read_rcv1 as rr
@@ -53,6 +53,46 @@ def eval_first_sent(data=None):
 
     return bleu1_avg, bleu2_avg, bleu1_stem_avg, bleu2_stem_avg
 
+
+def get_tf_idf(data=None):
+
+    if data == None:
+        data = rr.get_split_data()
+
+
+    corpus = list() # a list of documents as strings
+    for article in data:
+        corpus.append(" ".join(" ".join(sent) for sent in article.text))
+
+    tfidf = TfidfVectorizer(stop_words='english')
+
+    tfidf_matrix = tfidf.fit_transform(corpus)
+
+    feature_names = tfidf.get_feature_names()
+
+
+    bleu1_scores = list()
+    count = 0.
+    for doc_row in range(len(corpus)):
+        feature_indicies = tfidf_matrix[doc_row,:].nonzero()[1]
+
+        word_scores = [(feature_names[x], tfidf_matrix[doc_row, x]) for x in feature_indicies]
+
+        sorted_word_scores = sorted(word_scores, key=lambda t: -t[1])
+
+        top_ten_words = [str(word[0]) for word in sorted_word_scores[:10]]
+
+        headline_lowered = [word.lower() for word in data[doc_row].headline]
+
+        bleu1 = float(modified_precision([headline_lowered], top_ten_words, n=1))
+
+        bleu1_scores.append(bleu1)
+        count += 1.
+        rr.update_progress(count / len(corpus))
+
+    bleu1_avg = sum(bleu1_scores) / len(bleu1_scores)
+    print bleu1_avg
+    return bleu1_avg
 
 
 
