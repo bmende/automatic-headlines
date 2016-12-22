@@ -7,26 +7,34 @@ from collections import defaultdict
 
 weights = defaultdict(float)
 weight_feats = defaultdict(float)
+normalizer = float(0)
 
 
 def main(path,mode):
 
     if mode == 'train':
-        docs = read.get_split_data(path)
-        count = 0
-        for doc in docs:
-            count += 1			#temporary to keep a count of the documents processed
-            for index in range(len(doc.text_pos)):
+        if type(path) == str:
+            docs = read.get_split_data(path)
+        else:
+            docs = path
+        count = 0.
+        for doc in docs[:150]:
+            count += 1.			#temporary to keep a count of the documents processed
+            for index in range(doc.article_length):
                 feature_vec, outcome = doc.get_local_feature(index)
                 train(feature_vec,outcome)
-        print "count", count		#temporary
-        return 
+            read.update_progress(count / len(docs))		#temporary
+        print "count is", count
+        return
     elif mode == 'test':
         prob = {}
-        doc = read.get_one_article(path)
-        for index in range(len(doc.text_pos)):
+        if type(path) == str:
+            doc = read.get_one_article(path)
+        else:
+            doc = path
+        for index in range(doc.article_length):
             feature_vec, outcome = doc.get_local_feature(index)
-            prob[doc.text_pos[index][0]] = test(feature_vec)	
+            prob[doc.text_pos[index][0]] = test(feature_vec)
         topn = sorted(prob.items(), key=operator.itemgetter(0), reverse=True)[:10]
         return topn
 
@@ -44,11 +52,13 @@ def predict(feature_vec):
         if weights[key] == 0.0:
             weights[key] = random.uniform(0, 1)
         weight_feats[key] = weights[key]*value
-    normalize = max(weight_feats.values())
-    for keys,value in weight_feats.iteritems():
-        weight_feats[key] = value-normalize
-    for key in feature_vec.keys():
-        expo_sum += math.exp(weight_feats[key])
+    normalize = normalizer
+    normalize += max(weight_feats.values())
+    #for keys in weight_feats.iterkeys():
+    #    weight_feats[key] -= normalize
+    expo_sum = sum(math.exp(weight_feats[key] - normalize) for key in feature_vec)
+#    for key in feature_vec.keys():
+#        expo_sum += math.exp(weight_feats[key] - normalize)
     output = math.log(expo_sum)/expo_sum
     return output
 
@@ -61,7 +71,3 @@ if __name__ == "__main__":
     main('data/train_sample365.split','train')		#small files that I made created with 1 file a day instead of 100
     topn = main('data/rcv1/19961021/131576newsML.xml','test')
     print "topn",topn
-
-
-
-

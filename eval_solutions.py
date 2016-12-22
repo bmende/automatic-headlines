@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 import read_rcv1 as rr
+import perceptron as pp
 
 
 
@@ -59,6 +60,9 @@ def get_tf_idf(data=None):
     if data == None:
         data = rr.get_split_data()
 
+    one_doc = rr.get_one_article()
+    data.append(one_doc)
+
 
     corpus = list() # a list of documents as strings
     for article in data:
@@ -74,6 +78,7 @@ def get_tf_idf(data=None):
     bleu1_scores = list()
     count = 0.
     for doc_row in range(len(corpus)):
+
         feature_indicies = tfidf_matrix[doc_row,:].nonzero()[1]
 
         word_scores = [(feature_names[x], tfidf_matrix[doc_row, x]) for x in feature_indicies]
@@ -90,9 +95,56 @@ def get_tf_idf(data=None):
         count += 1.
         rr.update_progress(count / len(corpus))
 
+        if doc_row == len(corpus) - 1:
+            print top_ten_words
+
     bleu1_avg = sum(bleu1_scores) / len(bleu1_scores)
     print bleu1_avg
     return bleu1_avg
 
 
 
+
+
+
+def get_trained_headlines(data=None):
+
+    if data == None:
+        data = rr.get_split_data('data/train_sample365.split')
+
+
+    pp.main(data, 'train') # train!
+
+    bleu_scores = list()
+
+    count = 0.
+    for doc in data[:150]:
+        top_n_words = pp.main(doc, 'test')
+        words = [word[0].lower() for word in top_n_words]
+
+        headline = [word.lower() for word in doc.headline]
+
+        bleu1 = float(modified_precision([headline], words, n=1))
+
+        bleu_scores.append(bleu1)
+        count += 1.
+        rr.update_progress(count / len(data))
+
+
+    bleu_avg = sum(bleu_scores) / len(bleu_scores)
+    print bleu_avg
+
+    one_doc = rr.get_one_article()
+    top_words = pp.main(one_doc, 'test')
+    words = [word[0].lower() for word in top_words]
+    headline = [word.lower() for word in one_doc.headline]
+    print words
+    print headline
+    print float(modified_precision([headline], words, n=1))
+    return bleu_avg
+
+if __name__ == "__main__":
+
+    print "calculating trained stuff"
+
+    get_trained_headlines()
